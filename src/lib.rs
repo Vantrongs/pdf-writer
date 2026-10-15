@@ -194,9 +194,9 @@ pub use self::buf::{Buf, Limits};
 pub use self::chunk::{Chunk, Settings};
 pub use self::content::Content;
 pub use self::object::{
-    Array, Date, Dict, Filter, Finish, LanguageIdentifier, Name, Null, Obj, Primitive,
-    Rect, Ref, Rewrite, Str, Stream, TextStr, TextStrLike, TextStrWithLang, TypedArray,
-    TypedDict, Writer,
+    Array, Date, Dict, Filter, Finish, LanguageIdentifier, Name, Null, NumberToken, Obj,
+    Primitive, Rect, Ref, Rewrite, Str, Stream, TextStr, TextStrLike, TextStrWithLang,
+    TypedArray, TypedDict, Writer,
 };
 
 use std::fmt::{self, Debug, Formatter};

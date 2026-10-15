@@ -73,6 +73,49 @@ impl Sealed for f32 {
 
 impl Primitive for f32 {}
 
+/// A number written as the given token, for a number copied from another file
+/// as it is written there.
+///
+/// An `i32` or `f32` holds the value of a number, but not how it is written:
+/// readers differ on tokens such as `4294967297`, `5.0` or `--5` (one reads the
+/// first as `1`, another as `4294967297`), and a copy written from a value can
+/// be read otherwise than its source. This writes the token's bytes.
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct NumberToken<'a>(&'a [u8]);
+
+impl<'a> NumberToken<'a> {
+    /// The token `bytes`; `None` unless they are one or more digits, signs and
+    /// points, which no reader takes for anything but one number token.
+    pub fn new(bytes: &'a [u8]) -> Option<Self> {
+        let number = |b: &u8| matches!(b, b'0'..=b'9' | b'+' | b'-' | b'.');
+        (!bytes.is_empty() && bytes.iter().all(number)).then_some(Self(bytes))
+    }
+
+    /// The token's bytes.
+    pub fn get(self) -> &'a [u8] {
+        self.0
+    }
+}
+
+impl Sealed for NumberToken<'_> {
+    const STARTS_WITH_DELIMITER: bool = false;
+
+    fn write(self, buf: &mut Buf) {
+        // The limits as far as the token reads as a number in Rust.
+        let text = std::str::from_utf8(self.0).unwrap_or_default();
+        if let Ok(value) = text.parse::<f64>() {
+            if self.0.contains(&b'.') {
+                buf.limits.register_real(value.abs().min(f32::MAX as f64) as f32);
+            } else {
+                buf.limits.register_int(value.abs().min(i32::MAX as f64) as i32);
+            }
+        }
+        buf.extend(self.0);
+    }
+}
+
+impl Primitive for NumberToken<'_> {}
+
 /// A string object (any byte sequence).
 ///
 /// This is written as `(Thing)`.
@@ -1758,5 +1801,25 @@ mod tests {
             },
             b"<</Key1 12/Key2/Hi/Key3 false/Key4(A string)/Key5[23/Value]/Key6 null/Key7 23.4>>"
         );
+    }
+
+    #[test]
+    fn test_number_tokens() {
+        let token = |bytes| NumberToken::new(bytes).unwrap();
+        test_obj_no_pretty!(
+            |obj| {
+                let mut arr = obj.array();
+                arr.item(token(b"4294967297"))
+                    .item(token(b"5.0"))
+                    .item(token(b"--5"))
+                    .item(Name(b"N"))
+                    .item(token(b".5"));
+                arr
+            },
+            b"[4294967297 5.0 --5/N .5]"
+        );
+        assert_eq!(NumberToken::new(b""), None);
+        assert_eq!(NumberToken::new(b"1 0 R"), None);
+        assert_eq!(NumberToken::new(b"1e5"), None);
     }
 }
